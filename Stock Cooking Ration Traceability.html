@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Stock Cooking Ration Traceability</title>
+<style>
+:root{--bg:#faf7f2;--card:#fff;--ink:#2a2118;--mute:#7a6d5f;--line:#e6ddd0;--accent:#c2571a;--accent-ink:#fff;--in:#2f7d4f;--out:#b4432b;--warn:#b7791f;--chip:#f3ece1;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#17130f;--card:#221c16;--ink:#f1e9de;--mute:#a69a8b;--line:#3a3128;--accent:#e8873f;--accent-ink:#1a1008;--in:#5fc08a;--out:#ee7f66;--warn:#e3b04b;--chip:#2d251d;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#17130f;--card:#221c16;--ink:#f1e9de;--mute:#a69a8b;--line:#3a3128;--accent:#e8873f;--accent-ink:#1a1008;--in:#5fc08a;--out:#ee7f66;--warn:#e3b04b;--chip:#2d251d;color-scheme:dark}
+*{box-sizing:border-box}html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+header{padding:28px 20px 8px;max-width:980px;margin:0 auto}
+h1{font:700 1.7rem/1.2 Georgia,"Times New Roman",serif;margin:0 0 4px}
+header p{margin:0;color:var(--mute)}
+main{max-width:980px;margin:0 auto;padding:12px 20px 48px}
+nav{display:flex;gap:6px;overflow-x:auto;padding:8px 0 14px}
+nav button{border:1px solid var(--line);background:var(--card);color:var(--ink);padding:9px 16px;border-radius:999px;font:inherit;font-size:.95rem;cursor:pointer;white-space:nowrap}
+nav button.on{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:16px}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:16px}
+.stat{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px}
+.stat b{display:block;font-size:1.6rem;font-family:Georgia,serif}.stat span{color:var(--mute);font-size:.85rem}
+form{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px}
+label{display:flex;flex-direction:column;gap:4px;font-size:.85rem;color:var(--mute)}
+input,select,textarea{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px 12px;width:100%}
+.full{grid-column:1/-1}
+.btn{background:var(--accent);color:var(--accent-ink);border:0;border-radius:10px;padding:11px 18px;font:inherit;font-weight:600;cursor:pointer}
+.btn.ghost{background:transparent;color:var(--mute);border:1px solid var(--line);font-weight:400}
+.tw{overflow-x:auto}
+table{border-collapse:collapse;width:100%;min-width:640px;font-size:.92rem}
+th,td{text-align:left;padding:10px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:.75rem;text-transform:uppercase;letter-spacing:.05em;color:var(--mute)}
+.tag{display:inline-block;padding:2px 9px;border-radius:999px;font-size:.78rem;font-weight:600;background:var(--chip)}
+.in{color:var(--in)}.out{color:var(--out)}.warn{color:var(--warn)}
+.empty{color:var(--mute);text-align:center;padding:24px 8px}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+.row input{flex:1;min-width:200px}
+.msg{margin-top:10px;font-size:.9rem;min-height:1.3em}
+a.lnk{color:var(--accent);cursor:pointer;text-decoration:underline}
+</style>
+</head>
+<body>
+<header>
+  <h1>Stock Cooking Ration Traceability</h1>
+  <p>Record every batch that comes in and goes out, and trace where it came from and where it went.</p>
+</header>
+<main>
+  <nav id="tabs"></nav>
+  <div id="view"></div>
+</main>
+<script>
+var KEY='cooking-ration-trace-v1', tx=[], tab='overview', q='';
+var TABS=[['overview','Stock overview'],['in','Stock in'],['out','Stock out'],['ledger','Trace ledger']];
+try{tx=JSON.parse(localStorage.getItem(KEY)||'[]')||[]}catch(e){tx=[]}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(tx))}catch(e){}}
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
+function today(){return new Date().toISOString().slice(0,10)}
+function num(n){return Math.round(n*100)/100}
+function batches(){
+  var m={};
+  tx.forEach(function(t){
+    var k=t.item.toLowerCase()+'|'+t.batch.toLowerCase();
+    if(!m[k])m[k]={item:t.item,batch:t.batch,unit:t.unit,qin:0,qout:0,expiry:'',supplier:'',recv:''};
+    var b=m[k];
+    if(t.type==='in'){b.qin+=t.qty;b.expiry=t.expiry||b.expiry;b.supplier=t.party;b.recv=t.date;b.unit=t.unit}
+    else b.qout+=t.qty;
+  });
+  return Object.keys(m).map(function(k){var b=m[k];b.left=num(b.qin-b.qout);return b});
+}
+function status(b){
+  if(b.left<=0)return['Finished',''];
+  if(!b.expiry)return['In stock','in'];
+  var d=(new Date(b.expiry)-new Date(today()))/864e5;
+  if(d<0)return['Expired','out'];
+  if(d<=30)return['Expires soon','warn'];
+  return['In stock','in'];
+}
+function setTab(t){tab=t;render()}
+function render(){
+  document.getElementById('tabs').innerHTML=TABS.map(function(t){return '<button class="'+(t[0]===tab?'on':'')+'" onclick="setTab(\''+t[0]+'\')">'+t[1]+'</button>'}).join('');
+  var v=document.getElementById('view');
+  v.innerHTML=tab==='overview'?overview():tab==='in'?formIn():tab==='out'?formOut():ledger();
+}
+function overview(){
+  var bs=batches(), act=bs.filter(function(b){return b.left>0});
+  var soon=act.filter(function(b){return status(b)[0]==='Expires soon'||status(b)[0]==='Expired'}).length;
+  var rows=bs.sort(function(a,b){return a.item.localeCompare(b.item)}).map(function(b){
+    var s=status(b);
+    return '<tr><td>'+esc(b.item)+'</td><td><a class="lnk" onclick="traceBatch(\''+esc(b.batch).replace(/'/g,'')+'\')">'+esc(b.batch)+'</a></td><td>'+b.qin+' '+esc(b.unit)+'</td><td>'+b.qout+' '+esc(b.unit)+'</td><td><b>'+b.left+' '+esc(b.unit)+'</b></td><td>'+esc(b.expiry||'—')+'</td><td><span class="tag '+s[1]+'">'+s[0]+'</span></td></tr>';
+  }).join('');
+  return '<div class="stats"><div class="stat"><b>'+act.length+'</b><span>Batches in stock</span></div><div class="stat"><b>'+tx.filter(function(t){return t.type==='in'}).length+'</b><span>Receipts recorded</span></div><div class="stat"><b>'+tx.filter(function(t){return t.type==='out'}).length+'</b><span>Issues recorded</span></div><div class="stat"><b class="'+(soon?'warn':'')+'">'+soon+'</b><span>Expiring or expired</span></div></div>'+
+  '<div class="card"><h3 style="margin-top:0">Current stock by batch</h3><div class="tw">'+(rows?'<table><thead><tr><th>Item</th><th>Batch</th><th>Received</th><th>Issued</th><th>Balance</th><th>Expiry</th><th>Status</th></tr></thead><tbody>'+rows+'</tbody></table>':'<div class="empty">No stock recorded yet. Start with the “Stock in” tab.</div>')+'</div></div>';
+}
+function formIn(){
+  return '<div class="card"><h3 style="margin-top:0">Receive stock</h3><form onsubmit="return addIn(event)">'+
+  '<label>Date received<input type="date" id="i-date" value="'+today()+'" required></label>'+
+  '<label>Ration item<input id="i-item" list="items" placeholder="e.g. Rice" required></label>'+
+  '<datalist id="items"><option>Rice</option><option>Cooking oil</option><option>Flour</option><option>Sugar</option><option>Salt</option><option>Lentils</option><option>Canned fish</option></datalist>'+
+  '<label>Batch / lot no.<input id="i-batch" placeholder="e.g. RC-2026-114" required></label>'+
+  '<label>Quantity<input type="number" id="i-qty" min="0.01" step="any" required></label>'+
+  '<label>Unit<select id="i-unit"><option>kg</option><option>litre</option><option>pack</option><option>carton</option><option>bag</option></select></label>'+
+  '<label>Supplier<input id="i-party" placeholder="Supplier name" required></label>'+
+  '<label>Expiry date<input type="date" id="i-exp"></label>'+
+  '<label class="full">Notes (invoice / delivery order no.)<input id="i-note"></label>'+
+  '<div class="full"><button class="btn">Record stock in</button><div class="msg" id="msg"></div></div></form></div>';
+}
+function addIn(e){
+  e.preventDefault();
+  var g=function(i){return document.getElementById(i).value.trim()};
+  var item=g('i-item'),batch=g('i-batch');
+  tx.push({id:Date.now(),type:'in',date:g('i-date'),item:item,batch:batch,qty:parseFloat(g('i-qty')),unit:g('i-unit'),party:g('i-party'),expiry:g('i-exp'),note:g('i-note')});
+  save();tab='overview';render();return false;
+}
+function formOut(){
+  var opts=batches().filter(function(b){return b.left>0}).map(function(b){
+    return '<option value="'+esc(b.item)+'|'+esc(b.batch)+'">'+esc(b.item)+' · '+esc(b.batch)+' ('+b.left+' '+esc(b.unit)+' left)</option>'}).join('');
+  if(!opts)return '<div class="card"><div class="empty">No stock available to issue. Record a receipt first.</div></div>';
+  return '<div class="card"><h3 style="margin-top:0">Issue stock</h3><form onsubmit="return addOut(event)">'+
+  '<label>Date issued<input type="date" id="o-date" value="'+today()+'" required></label>'+
+  '<label class="full">Batch<select id="o-batch">'+opts+'</select></label>'+
+  '<label>Quantity<input type="number" id="o-qty" min="0.01" step="any" required></label>'+
+  '<label>Issued to (kitchen / unit / person)<input id="o-party" required></label>'+
+  '<label class="full">Notes (requisition no.)<input id="o-note"></label>'+
+  '<div class="full"><button class="btn">Record stock out</button><div class="msg out" id="msg"></div></div></form></div>';
+}
+function addOut(e){
+  e.preventDefault();
+  var g=function(i){return document.getElementById(i).value.trim()};
+  var p=g('o-batch').split('|'),qty=parseFloat(g('o-qty'));
+  var b=batches().filter(function(x){return x.item===p[0]&&x.batch===p[1]})[0];
+  if(!b||qty>b.left){document.getElementById('msg').textContent='Not enough stock. Only '+(b?b.left:0)+' '+(b?b.unit:'')+' left in this batch.';return false}
+  tx.push({id:Date.now(),type:'out',date:g('o-date'),item:b.item,batch:b.batch,qty:qty,unit:b.unit,party:g('o-party'),expiry:'',note:g('o-note')});
+  save();tab='overview';render();return false;
+}
+function traceBatch(b){q=b;tab='ledger';render()}
+function setQ(v){q=v;var pos=v.length;render();var el=document.getElementById('q');el.focus();el.setSelectionRange(pos,pos)}
+function del(id){if(confirm('Delete this record?')){tx=tx.filter(function(t){return t.id!==id});save();render()}}
+function ledger(){
+  var s=q.toLowerCase();
+  var list=tx.slice().sort(function(a,b){return a.date<b.date?1:a.date>b.date?-1:b.id-a.id}).filter(function(t){
+    return !s||[t.item,t.batch,t.party,t.note,t.date].join(' ').toLowerCase().indexOf(s)>-1});
+  var rows=list.map(function(t){
+    return '<tr><td>'+esc(t.date)+'</td><td><span class="tag '+t.type+'">'+(t.type==='in'?'IN':'OUT')+'</span></td><td>'+esc(t.item)+'</td><td>'+esc(t.batch)+'</td><td class="'+t.type+'">'+(t.type==='in'?'+':'−')+t.qty+' '+esc(t.unit)+'</td><td>'+esc(t.party)+'</td><td>'+esc(t.note||'')+'</td><td><a class="lnk" onclick="del('+t.id+')">Delete</a></td></tr>'}).join('');
+  return '<div class="card"><div class="row"><input id="q" type="search" placeholder="Trace by batch no., item, supplier or recipient" value="'+esc(q)+'" oninput="setQ(this.value)">'+(q?'<button class="btn ghost" onclick="setQ(\'\')">Clear</button>':'')+'</div><div class="tw">'+
+  (rows?'<table><thead><tr><th>Date</th><th>Type</th><th>Item</th><th>Batch</th><th>Quantity</th><th>Supplier / issued to</th><th>Notes</th><th></th></tr></thead><tbody>'+rows+'</tbody></table>':'<div class="empty">No matching records.</div>')+'</div></div>';
+}
+render();
+</script>
+</body>
+</html>
